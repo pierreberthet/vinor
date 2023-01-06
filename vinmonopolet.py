@@ -32,10 +32,10 @@ def get_price(data:str):
 
 verbose = False
 time_sleep = 1.
+lib = 'lxml'  # 'html5lib'
 
 
 #%%
-
 
 
 driver = webdriver.Firefox()
@@ -50,35 +50,12 @@ time.sleep(time_sleep)
 html = driver.page_source
 soup = BeautifulSoup(html, 'html5lib')
 
-
-# soup = BeautifulSoup(page.content, 'html.parser')
-
 results = soup.find(id='search-results')
-
-wines = results.find_all('li', class_='product-item')
-
-_, page, _, total_pages = results.find('span', class_="pagination-text").text.strip().split(' ')
-
-page = int(page)
-total_pages = int(total_pages)
+total_pages = int(results.find('span', class_="pagination-text").text.strip().split(' ')[3])
 
 res = dict()
 i = 0
 
-for wine in wines:
-    name = wine.find('div', class_='product__name').text.strip()
-    price = get_price(wine.find('span', class_='product__price').text.strip())
-    
-    try:
-        year = int(name[-4:])
-    except ValueError:
-        year = None
-    volume = wine.find('span', class_='product__amount').text.strip()
-    if verbose: 
-        print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
-    
-    res[i] = {'name':name, 'year': year, 'price': price, 'volume':volume}
-    i += 1
 
 for current_page in tqdm(range(total_pages), desc='scrapping results...'):
     # time.sleep(1.0)
@@ -86,7 +63,7 @@ for current_page in tqdm(range(total_pages), desc='scrapping results...'):
     driver.get(URL)
     time.sleep(time_sleep)
     html = driver.page_source
-    soup = BeautifulSoup(html, 'html5lib')
+    soup = BeautifulSoup(html, lib)
 
     results = soup.find(id='search-results')
     wines = results.find_all('li', class_='product-item')
@@ -108,7 +85,35 @@ for current_page in tqdm(range(total_pages), desc='scrapping results...'):
 
 
 vinmo = pd.DataFrame.from_dict(res, orient='index')
+
+# there are some duplicate, why? do not know, looks kind of like the same search results were fed twice.
+vinmo.drop_duplicates(inplace=True)
+
+
+
 # TODO (dev)
 # get NOK / EUR exchange rate to compute in one base
 # use volume to ratio the price to a standard 75cl
 # keep track of prices?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
