@@ -4,7 +4,7 @@ The project is to get an idea of the price difference, by wine, between France a
 
 ## Plan:
 - [ ] get NOK/EUR exchange rate
-- [ ] get prices from French website (consummer prices)
+- [ ] get prices from French website (consummer prices) meta? search engine results?
 - [ ] add Italian, Spanish, other wines
 - [ ] add DutyFree prices from international arrival in Norway
 - [ ] track prices (low priority)

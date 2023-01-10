@@ -36,9 +36,26 @@ lib = 'lxml'  # 'html5lib'
 
 
 #%%
+# EUR/NOK exchange rate from Norges Bank, in a json format
+fx_URL = 'https://data.norges-bank.no/api/data/EXR/B.EUR.NOK.SP?lastNObservations=1&format=sdmx-json'
+response = requests.get(fx_URL)
+
+if response.status_code == 200:
+    data = response.json()['data']
+    fx = float(data['dataSets'][0]['series']['0:0:0:0']['observations']['0'][0])
+    fx_date = data['structure']['dimensions']['observation'][0]['values'][0]['name']
+    assets = f"{data['structure']['dimensions']['series'][1]['values'][0]['id']} / {data['structure']['dimensions']['series'][2]['values'][0]['id']}"
+    # Print the value
+    print(f"{data['structure']['description']} on {fx_date}\n\
+          1 {data['structure']['dimensions']['series'][1]['values'][0]['id']} = {fx} {data['structure']['dimensions']['series'][2]['values'][0]['id']}")
+else:
+    print("Request failed with status code: ", response.status_code)
+#%%
+
 
 
 driver = webdriver.Firefox()
+driver = webdriver.Chrome()
 
 
 URL = "https://www.vinmonopolet.no/vmp/no/search?query=french+wines"
@@ -91,12 +108,34 @@ vinmo.drop_duplicates(inplace=True)
 
 
 
+#%%
+
+# now for each wine, request wine-searcher and fetch price, compare, display if RULE
+# https://www.wine-searcher.com/find/dom+pierre+andre+chateauneuf+du+pape+rhone+france/2017/france/-/n
+URL_ws = 'https://www.wine-searcher.com/find/dom+pierre+andre+chateauneuf+du+pape+rhone+france/2017/france/-/n'
+
+
+for wx, wine in tqdm(enumerate(vinmo.name.values[3:4]), desc='requesting wine-searcher ...'):
+    if vinmo.loc[wx, 'year'] is not None:
+        kw  = '+'.join(wine.replace('-', ' ').split()[:-1])
+        w_URL = f'''https://www.wine-searcher.com/find/{kw}/{int(vinmo.loc[wx, 'year'])}/france/-/n'''
+        
+        driver.get(w_URL)
+        time.sleep(time_sleep)
+        html = driver.page_source
+        soup = BeautifulSoup(html, 'html5lib')
+
+
+
+
 # TODO (dev)
 # get NOK / EUR exchange rate to compute in one base
 # use volume to ratio the price to a standard 75cl
 # keep track of prices?
+# improve vinmo, really keep super expensive wine? Also, if not available, should be kept?
+# use googe or searX or qwant as proxy for meta price fetching
 
-
+# cc for documentation and tests
 
 
 
