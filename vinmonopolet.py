@@ -31,7 +31,7 @@ def get_price(data:str):
 # Parameters
 
 verbose = False
-time_sleep = 1.
+time_sleep = 1.6
 lib = 'lxml'  # 'html5lib'
 
 
@@ -55,11 +55,12 @@ else:
 
 
 driver = webdriver.Firefox()
-driver = webdriver.Chrome()
 
 
 URL = "https://www.vinmonopolet.no/vmp/no/search?query=french+wines"
 URL = "https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:75+-+99+cl&searchType=product&currentPage=0"
+
+URL = 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:70+-+99+cl&searchType=product&currentPage=0'
 # page = requests.get(URL)
 
 driver.get(URL)
@@ -76,7 +77,7 @@ i = 0
 
 for current_page in tqdm(range(total_pages), desc='scrapping results...'):
     # time.sleep(1.0)
-    URL = f"https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:75+-+99+cl&searchType=product&currentPage={current_page}"
+    URL = f"https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:70+-+99+cl&searchType=product&currentPage={current_page}"
     driver.get(URL)
     time.sleep(time_sleep)
     html = driver.page_source
@@ -93,7 +94,7 @@ for current_page in tqdm(range(total_pages), desc='scrapping results...'):
             year = int(name[-4:])
         except ValueError:
             year = None
-        volume = wine.find('span', class_='product__amount').text.strip()
+        volume = wine.find('span', class_='amount').text.strip()
         if verbose:
             print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
         
@@ -106,6 +107,9 @@ vinmo = pd.DataFrame.from_dict(res, orient='index')
 # there are some duplicate, why? do not know, looks kind of like the same search results were fed twice.
 vinmo.drop_duplicates(inplace=True)
 
+# convert year to integer, pandas can not manage None with int type --> no vintage = 0
+vinmo['year'] = pd.to_numeric(vinmo.year.fillna(0), errors='coerce', downcast='integer')
+
 
 
 #%%
@@ -116,7 +120,7 @@ URL_ws = 'https://www.wine-searcher.com/find/dom+pierre+andre+chateauneuf+du+pap
 
 
 for wx, wine in tqdm(enumerate(vinmo.name.values[3:4]), desc='requesting wine-searcher ...'):
-    if vinmo.loc[wx, 'year'] is not None:
+    if vinmo.loc[wx, 'year'] != 0:
         kw  = '+'.join(wine.replace('-', ' ').split()[:-1])
         w_URL = f'''https://www.wine-searcher.com/find/{kw}/{int(vinmo.loc[wx, 'year'])}/france/-/n'''
         
@@ -126,7 +130,21 @@ for wx, wine in tqdm(enumerate(vinmo.name.values[3:4]), desc='requesting wine-se
         soup = BeautifulSoup(html, 'html5lib')
 
 
+#%%
+base_search_URL = 'https://www.qwant.com/?l=en&locale=fr_FR&q=prix+name+year&t=web'
 
+for wx, wine in tqdm(enumerate(vinmo.name.values[3:4]), desc='requesting wine-searcher ...'):
+    if vinmo.loc[wx, 'year'] != 0:
+        kw  = '+'.join(wine.replace('-', ' ').split()[:-1])
+        w_URL = base_search_URL.replace('name', kw).replace('year', str(vinmo.loc[wx, 'year']))
+        
+        driver.get(w_URL)
+        time.sleep(5.)
+        html = driver.page_source
+        soup = BeautifulSoup(html, 'html5lib')
+
+
+#%%
 
 # TODO (dev)
 # get NOK / EUR exchange rate to compute in one base
