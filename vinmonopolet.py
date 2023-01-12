@@ -10,10 +10,13 @@ import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 
+import numpy as np
 import pandas as pd
 
 from tqdm import tqdm
 import time
+from datetime import datetime
+import os
 
 
 #%%
@@ -26,12 +29,20 @@ def get_price(data:str):
         price = price.replace('\xa0', '')  # remove the \xa0 character
         price = float(price.replace(',', '.'))
     return price
+
+
+def random_sleep(base_time:float):
+    return np.random.normal(base_time,.1)
         
 #%%
 # Parameters
 
+#where to dump the csv files of the scrapped data
+folder = '/media/terror/code/projects/vinor/csv'
+
+
 verbose = False
-time_sleep = 1.6
+time_sleep = 1.5
 lib = 'lxml'  # 'html5lib'
 
 
@@ -110,6 +121,10 @@ vinmo.drop_duplicates(inplace=True)
 # convert year to integer, pandas can not manage None with int type --> no vintage = 0
 vinmo['year'] = pd.to_numeric(vinmo.year.fillna(0), errors='coerce', downcast='integer')
 
+if False:
+    vinmo.to_csv(os.path.join(folder, f"vinmonopolet_dump_{datetime.now().strftime('%d_%m_%Y')}.csv"))
+
+
 
 
 #%%
@@ -142,6 +157,122 @@ for wx, wine in tqdm(enumerate(vinmo.name.values[3:4]), desc='requesting wine-se
         time.sleep(5.)
         html = driver.page_source
         soup = BeautifulSoup(html, 'html5lib')
+
+
+
+#%%
+
+# all wines TAX-FREE.no
+sleeper_dutyfree = 1.7
+
+driver = webdriver.Firefox()
+dutyfree_URL ="https://www.tax-free.no/no/category252/alkohol/vin?category=Alkohol%20%3E%20Vin"
+driver.get(dutyfree_URL)
+time.sleep(time_sleep)
+html = driver.page_source
+soup = BeautifulSoup(html, 'html5lib')
+
+
+button = driver.find_element(by='xpath', value='//*[@id="product_list"]/trn-algolia-pagination/div/trn-button/button')
+results = soup.find(id='product_list')
+time.sleep(.5)
+n_products =int(results.find('p', class_="stats infinite-hits").text.strip().split(' ')[4])
+per_page =  int(results.find('p', class_="stats infinite-hits").text.strip().split(' ')[2])
+for i in tqdm(range(n_products // per_page), desc='clicking to load all results...'):    
+    driver.execute_script("arguments[0].click();", button)
+    if i < ((n_products // per_page)-1) :
+        time.sleep(.5)
+        button = driver.find_element(by='xpath', value='//*[@id="product_list"]/trn-algolia-pagination/div/trn-button/button')
+
+    
+# now we go through all the product results item in html and scrap their html link
+html = driver.page_source
+soup = BeautifulSoup(html, 'html5lib')
+results = soup.find(id='product_list')
+wines = results.find_all('li', class_='list-item')
+
+res = dict()
+
+# get all reference listed, scrap all their links, go through each link to scrape the required data (name, volume, year, country, price)
+for x, wine in enumerate(wines):
+    res[x] = {'name': wine.find('a').text, 'href': wine.find('a')['href']}
+
+dutyfree_url_df = pd.DataFrame.from_dict(res, orient='index')    
+
+res = dict()
+
+for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine page...'):
+    if i >= 55:
+        
+        
+        try:
+            driver.get(f"https://www.tax-free.no{row.href}")
+        except WebDriverException:
+            time.sleep(random_sleep(sleeper_dutyfree))
+            driver.get(f"https://www.tax-free.no{row.href}")
+        
+        time.sleep(sleeper_dutyfree)
+        html = driver.page_source
+            
+        button = driver.find_element(by='xpath', value='/html/body/trn-root/trn-storefront/main/cx-page-layout/cx-page-slot[2]/trn-product-summary-slot/trn-product-summary/div/div/div/trn-product-info-block/div/trn-product-info-block-item[1]/div/button')
+        
+        # click button
+        driver.execute_script("arguments[0].click();", button)
+        
+        time.sleep(.25)
+        html = driver.page_source
+        soup = BeautifulSoup(html, lib)
+        
+        # get the data from the information box
+        labels = soup.find_all('div', class_='product-feature-label')
+        values = soup.find_all('div', class_='product-feature-value')
+        pairs = dict(zip([l.text for l in labels], [v.text for v in values]))
+        
+        if 'Årgang' not in pairs.keys():
+            year = ''
+        else:
+            year = pairs['Årgang']
+        
+        if 'Land' not in pairs.keys():
+            country = ''
+        else:
+            country = pairs['Land']
+        res[i] = {'name': soup.find('h1', class_='product-name').text,
+                  'year': year,
+                  'price': float(soup.find('span', class_='value').text),
+                  'country': country,
+                  'volume': float(pairs['Innhold'][:-1])}
+       
+
+
+# check for None in year, convert to int
+# check and correct for volume
+# add price in euro
+
+
+
+
+if False:
+    dutyfree_url_df.to_csv(os.path.join(folder, f"dutyfree_URL_{datetime.now().strftime('%d_%m_%Y')}.csv"))
+
+
+    
+    
+    
+    
+    
+    name = wine.find('div', class_='product__name').text.strip()
+    price = get_price(wine.find('span', class_='product__price').text.strip())
+    try:
+        year = int(name[-4:])
+    except ValueError:
+        year = None
+    volume = wine.find('span', class_='amount').text.strip()
+    if verbose:
+        print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
+    
+    res[i] = {'name':name, 'year': year, 'price': price, 'volume':volume}
+    i += 1
 
 
 #%%
