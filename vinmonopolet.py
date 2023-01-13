@@ -202,7 +202,7 @@ dutyfree_url_df = pd.DataFrame.from_dict(res, orient='index')
 res = dict()
 
 for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine page...'):
-    if i >= 55:
+    if i >= 566:
         
         
         try:
@@ -211,10 +211,14 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
             time.sleep(random_sleep(sleeper_dutyfree))
             driver.get(f"https://www.tax-free.no{row.href}")
         
-        time.sleep(sleeper_dutyfree)
+        time.sleep(random_sleep(sleeper_dutyfree))
         html = driver.page_source
-            
-        button = driver.find_element(by='xpath', value='/html/body/trn-root/trn-storefront/main/cx-page-layout/cx-page-slot[2]/trn-product-summary-slot/trn-product-summary/div/div/div/trn-product-info-block/div/trn-product-info-block-item[1]/div/button')
+        
+        try:
+            button = driver.find_element(by='xpath', value='/html/body/trn-root/trn-storefront/main/cx-page-layout/cx-page-slot[2]/trn-product-summary-slot/trn-product-summary/div/div/div/trn-product-info-block/div/trn-product-info-block-item[1]/div/button')
+        except NoSuchElementException:
+            time.sleep(random_sleep(sleeper_dutyfree))
+            button = driver.find_element(by='xpath', value='/html/body/trn-root/trn-storefront/main/cx-page-layout/cx-page-slot[2]/trn-product-summary-slot/trn-product-summary/div/div/div/trn-product-info-block/div/trn-product-info-block-item[1]/div/button')
         
         # click button
         driver.execute_script("arguments[0].click();", button)
@@ -237,11 +241,15 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
             country = ''
         else:
             country = pairs['Land']
+        if 'Innhold' not in pairs.keys():
+            volume = ''
+        else: 
+            volume = float(pairs['Innhold'][:-1])
         res[i] = {'name': soup.find('h1', class_='product-name').text,
                   'year': year,
                   'price': float(soup.find('span', class_='value').text),
                   'country': country,
-                  'volume': float(pairs['Innhold'][:-1])}
+                  'volume': volume}
        
 
 
@@ -250,10 +258,13 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
 # add price in euro
 
 
+dutyfree_df = pd.DataFrame.from_dict(res, orient='index')
+
 
 
 if False:
     dutyfree_url_df.to_csv(os.path.join(folder, f"dutyfree_URL_{datetime.now().strftime('%d_%m_%Y')}.csv"))
+    dutyfree_df.to_csv(os.path.join(folder, f"dutyfree_df_{datetime.now().strftime('%d_%m_%Y')}.csv"))
 
 
     
