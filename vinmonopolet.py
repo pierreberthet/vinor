@@ -109,7 +109,7 @@ for current_page in tqdm(range(total_pages), desc='scrapping results...'):
         if verbose:
             print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
         
-        res[i] = {'name':name, 'year': year, 'price': price, 'volume':volume}
+        res[i] = {'wine':name, 'year': year, 'price': price, 'volume':volume}
         i += 1
 
 
@@ -120,6 +120,24 @@ vinmo.drop_duplicates(inplace=True)
 
 # convert year to integer, pandas can not manage None with int type --> no vintage = 0
 vinmo['year'] = pd.to_numeric(vinmo.year.fillna(0), errors='coerce', downcast='integer')
+vinmo['wine'] = vinmo.name
+vinmo.drop(columns='name', inplace=True)
+vinmo = vinmo[['wine', 'year', 'price', 'volume']]
+
+
+# remove year from the name, and replace abbreviation with non abbreviated word  (improve similarity matching)
+for r, row in vinmo.iterrows():
+    if len(str(row.year)) > 2 and str(row.year) in row.wine:
+        # print(f"{row.wine} --> {row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau')}\n")
+        vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau').replace('Dom.', 'Domaine')
+        # vinmo.loc[r, 'wine'] = row.wine.replace('Ch.', 'Chateau')
+
+# TODO (dev)
+# account for different volumes
+
+# format string to float for volume
+vinmo.loc[vinmo.query("volume == '75 Cl'").index, 'volume'] = .75
+
 
 if False:
     vinmo.to_csv(os.path.join(folder, f"vinmonopolet_dump_{datetime.now().strftime('%d_%m_%Y')}.csv"))
@@ -291,13 +309,15 @@ if False:
     dutyfree_df.to_csv(os.path.join(folder, f"dutyfree_df_{datetime.now().strftime('%d_%m_%Y')}.csv"))
 
 
+# TODO (dev)
+df = dutyfree_df
     
 #%%
 
 import difflib
 
-for i,wine in enumerate(dutyfree_df.query("price > 100 and country== 'France'").name.values):
-    if difflib.get_close_matches(wine, vinmo.name.values) != []:
+for r, row in df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows()):
+    if difflib.get_close_matches( row.name, vinmo.name.values) != []:
         print(f"{wine} matched with {difflib.get_close_matches(wine, vinmo.name.values)}\n")
     # time.sleep(1.3)
     
