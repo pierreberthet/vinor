@@ -191,6 +191,8 @@ soup = BeautifulSoup(html, 'html5lib')
 results = soup.find(id='product_list')
 wines = results.find_all('li', class_='list-item')
 
+
+
 res = dict()
 
 # get all reference listed, scrap all their links, go through each link to scrape the required data (name, volume, year, country, price)
@@ -199,10 +201,12 @@ for x, wine in enumerate(wines):
 
 dutyfree_url_df = pd.DataFrame.from_dict(res, orient='index')    
 
+#%%
+driver = webdriver.Firefox()
 res = dict()
 
 for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine page...'):
-    if i >= 566:
+    if i >= -1:
         
         
         try:
@@ -245,10 +249,17 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
             volume = ''
         else: 
             volume = float(pairs['Innhold'][:-1])
+    
+        if 'Vin type' not in pairs.keys():
+            wine_type = ''
+        else: 
+            wine_type = pairs['Vin type']
+    
         res[i] = {'name': soup.find('h1', class_='product-name').text,
                   'year': year,
                   'price': float(soup.find('span', class_='value').text),
                   'country': country,
+                  'type': wine_type, 
                   'volume': volume}
        
 
@@ -259,7 +270,20 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
 
 
 dutyfree_df = pd.DataFrame.from_dict(res, orient='index')
+dutyfree_df.drop_duplicates(inplace=True)
 
+# convert year to integer, pandas can not manage None with int type --> no vintage = 0
+dutyfree_df['year'] = pd.to_numeric(dutyfree_df.year.replace('', 0), errors='coerce', downcast='integer')
+
+# rename wine type to english
+dutyfree_df.type.replace('champagne', 'champagne', inplace=True)
+dutyfree_df.type.replace('Rødvin', 'red', inplace=True)
+dutyfree_df.type.replace('Hvitvin', 'white', inplace=True)
+dutyfree_df.type.replace('Rosévin', 'rosé', inplace=True)
+dutyfree_df.type.replace('Musserende vin', 'sparkling', inplace=True)
+
+# format volume to float
+dutyfree_df['volume'] = pd.to_numeric(dutyfree_df.volume, errors='coerce')
 
 
 if False:
@@ -268,7 +292,34 @@ if False:
 
 
     
+#%%
+
+import difflib
+
+for i,wine in enumerate(dutyfree_df.query("price > 100 and country== 'France'").name.values):
+    if difflib.get_close_matches(wine, vinmo.name.values) != []:
+        print(f"{wine} matched with {difflib.get_close_matches(wine, vinmo.name.values)}\n")
+    # time.sleep(1.3)
     
+    
+    
+    
+    
+    
+    for j,wee in enumerate(dutyfree_df.name.values):
+        if wine == wee:
+            print(f"Found matched wine {wine}")
+            if vinmo.loc[i, 'year'] == dutyfree_df.loc[j, 'year']:
+                print(f"Matched year !!!!! {vinmo.loc[i, 'year']}")
+                
+                print(f"vinmopolet: {vinmo.loc[i, 'price']}   dutyfree: {dutyfree_df.loc[j, 'price']}")
+
+
+
+
+
+
+#%%
     
     
     
