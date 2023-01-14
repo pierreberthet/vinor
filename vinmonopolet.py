@@ -129,8 +129,9 @@ vinmo = vinmo[['wine', 'year', 'price', 'volume']]
 for r, row in vinmo.iterrows():
     if len(str(row.year)) > 2 and str(row.year) in row.wine:
         # print(f"{row.wine} --> {row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau')}\n")
-        vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau').replace('Dom.', 'Domaine')
+        vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1]
         # vinmo.loc[r, 'wine'] = row.wine.replace('Ch.', 'Chateau')
+    vinmo.loc[r, 'wine']  = row.wine.replace('Ch.', 'Chateau').replace('Dom.', 'Domaine')
 
 # TODO (dev)
 # account for different volumes
@@ -273,7 +274,9 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
         else: 
             wine_type = pairs['Vin type']
     
-        res[i] = {'name': soup.find('h1', class_='product-name').text,
+    
+
+        res[i] = {'wine': " ".join(soup.find('h1', class_='product-name').text.split()),
                   'year': year,
                   'price': float(soup.find('span', class_='value').text),
                   'country': country,
@@ -303,6 +306,22 @@ dutyfree_df.type.replace('Musserende vin', 'sparkling', inplace=True)
 # format volume to float
 dutyfree_df['volume'] = pd.to_numeric(dutyfree_df.volume, errors='coerce')
 
+dutyfree_df['wine'] = dutyfree_df.name
+dutyfree_df.drop(columns='name', inplace=True)
+dutyfree_df = dutyfree_df[['wine', 'year', 'price', 'volume', 'country', 'type']]
+
+
+
+# TODO (dev)
+# temp, needed only for current version, fixed in new scrap
+
+# save_df = dutyfree_df.copy(deep=True)
+
+# for r, row in dutyfree_df.iterrows():
+#     dutyfree_df.loc[r, 'wine'] = " ".join(row.wine.replace('St.', 'Saint').split())
+
+for r, row in dutyfree_df.iterrows():
+    dutyfree_df.loc[r, 'wine'] = row.wine.replace('Ch ', 'Chateau ')
 
 if False:
     dutyfree_url_df.to_csv(os.path.join(folder, f"dutyfree_URL_{datetime.now().strftime('%d_%m_%Y')}.csv"))
@@ -316,14 +335,30 @@ df = dutyfree_df
 
 import difflib
 
-for r, row in df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows()):
-    if difflib.get_close_matches( row.name, vinmo.name.values) != []:
-        print(f"{wine} matched with {difflib.get_close_matches(wine, vinmo.name.values)}\n")
+n_possibilities = 1
+cutoff = .73
+
+for r, row in df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows():
+    if len(difflib.get_close_matches( row.wine, vinmo.wine.values, n=n_possibilities, cutoff=cutoff)) > 0:
+        found = difflib.get_close_matches(row.wine, vinmo.wine.values, n=n_possibilities, cutoff=cutoff)[0]
+        print(f'''{row.wine} matched with {found}\n \
+              YEAR {row.year} --- {vinmo.query("@found in wine").year.values}\n\
+              PRICE {row.price} --- {vinmo.query("@found in wine").price.values}\n\n   ''')
+        
     # time.sleep(1.3)
     
-    
-    
-    
+#%%   
+from fuzzywuzzy import process, fuzz
+# TODO (dev) 
+# warning on slow SequenceMatcher. Install python-Levenshtein to remove this warning
+
+
+
+
+
+
+
+#%%
     
     
     for j,wee in enumerate(dutyfree_df.name.values):
@@ -364,7 +399,7 @@ for r, row in df.query("'France' in country and type=='red' and volume== .75 and
 # use volume to ratio the price to a standard 75cl
 # keep track of prices?
 # improve vinmo, really keep super expensive wine? Also, if not available, should be kept?
-# use googe or searX or qwant as proxy for meta price fetching
+# use google or searX or qwant as proxy for meta price fetching
 
 # cc for documentation and tests
 
