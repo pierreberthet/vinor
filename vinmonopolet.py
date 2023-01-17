@@ -18,6 +18,8 @@ import time
 from datetime import datetime
 import os
 
+from unidecode import unidecode
+
 
 #%%
 
@@ -65,55 +67,85 @@ else:
 
 
 
+start_time = time.time()
 driver = webdriver.Firefox()
 
 
 URL = "https://www.vinmonopolet.no/vmp/no/search?query=french+wines"
 URL = "https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:75+-+99+cl&searchType=product&currentPage=0"
 
-URL = 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:70+-+99+cl&searchType=product&currentPage=0'
+URL_base = 'https://www.vinmonopolet.no/search?q=:relevance:volumeRanges:70+-+99+cl&searchType=product&currentPage='
+URL = f"{URL_base}0"
 # page = requests.get(URL)
 
-driver.get(URL)
-time.sleep(time_sleep)
-html = driver.page_source
-soup = BeautifulSoup(html, 'html5lib')
 
-results = soup.find(id='search-results')
-total_pages = int(results.find('span', class_="pagination-text").text.strip().split(' ')[3])
+# https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:volumeRanges:70+-+99+cl&searchType=product&currentPage=0
+# https://www.vinmonopolet.no/search?q=:relevance:mainCategory:musserende_vin:volumeRanges:70+-+99+cl&searchType=product&currentPage=0
 
 res = dict()
 i = 0
 
+categories = {'rødvin': 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin&searchType=product',
+              'hvitvin': 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:hvitvin&searchType=product',
+              'rosévin': 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:ros%C3%A9vin&searchType=product',
+              'musserende_vin': 'https://www.vinmonopolet.no/search?q=:relevance:mainCategory:musserende_vin&searchType=product'}
 
-for current_page in tqdm(range(total_pages), desc='scrapping results...'):
-    # time.sleep(1.0)
-    URL = f"https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:70+-+99+cl&searchType=product&currentPage={current_page}"
-    driver.get(URL)
+for category in categories.keys():
+    print(category)
+    current_url = categories[category]
+    
+    driver.get(f"{current_url}&currentPage=0")
     time.sleep(time_sleep)
     html = driver.page_source
-    soup = BeautifulSoup(html, lib)
+    soup = BeautifulSoup(html, 'html5lib')
 
     results = soup.find(id='search-results')
-    wines = results.find_all('li', class_='product-item')
-    # page = int(results.find('span', class_="pagination-text").text.strip().split(' ')[1])
-        
-    for wine in wines:
-        name = wine.find('div', class_='product__name').text.strip()
-        price = get_price(wine.find('span', class_='product__price').text.strip())
-        try:
-            year = int(name[-4:])
-        except ValueError:
-            year = None
-        volume = wine.find('span', class_='amount').text.strip()
-        if verbose:
-            print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
-        
-        res[i] = {'wine':name, 'year': year, 'price': price, 'volume':volume}
-        i += 1
+    total_pages = int(results.find('span', class_="pagination-text").text.strip().split(' ')[3])
 
+    for current_page in tqdm(range(total_pages), desc='scrapping results...'):
+        # time.sleep(1.0)
+        # URL = f"https://www.vinmonopolet.no/search?q=:relevance:mainCategory:r%C3%B8dvin:mainCountry:frankrike:volumeRanges:70+-+99+cl&searchType=product&currentPage={current_page}"
+        URL = f"{current_url}&currentPage={current_page}"
+        driver.get(URL)
+        time.sleep(time_sleep)
+        html = driver.page_source
+        soup = BeautifulSoup(html, lib)
+        
+        # sometimes the website hiccups and does not reply in time, of fails --> try again
+        try: 
+            results = soup.find(id='search-results')
+            wines = results.find_all('li', class_='product-item')
+            # page = int(results.find('span', class_="pagination-text").text.strip().split(' ')[1])
+        except AttributeError:
+            time.sleep(time_sleep)
+            driver.get(URL)
+            time.sleep(time_sleep)
+            html = driver.page_source
+            soup = BeautifulSoup(html, lib)
+        
+        for wine in wines:
+            name = unidecode(wine.find('div', class_='product__name').text.strip())
+            price = get_price(wine.find('span', class_='product__price').text.strip())
+            try:
+                year = int(name[-4:])
+            except ValueError:
+                year = None
+            volume = wine.find('span', class_='amount').text.strip()
+            wine_type = wine.find('div', class_='product__category-name').text.strip()
+            country = unidecode(wine.find('div', class_='product__district').text.strip().split(',')[0])
+            details = unidecode(''.join(wine.find('div', class_='product__district').text.strip().split(',')[1:]))[1:]
+    
+            if verbose:
+                print(f'Name: {name}\nPrice: {price}\nYear: {year}\nVolume: {volume}---')
+            
+            res[i] = {'wine':name, 'year': year, 'price': price, 'volume':volume, 'type':wine_type, 'country':country, 'details': details}
+            i += 1
+
+print(f"Took {time.time() - start_time} s")
 
 vinmo = pd.DataFrame.from_dict(res, orient='index')
+
+#%%
 
 # there are some duplicate, why? do not know, looks kind of like the same search results were fed twice.
 vinmo.drop_duplicates(inplace=True)
@@ -131,7 +163,7 @@ for r, row in vinmo.iterrows():
         # print(f"{row.wine} --> {row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau')}\n")
         vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1]
         # vinmo.loc[r, 'wine'] = row.wine.replace('Ch.', 'Chateau')
-    vinmo.loc[r, 'wine']  = row.wine.replace('Ch.', 'Chateau').replace('Dom.', 'Domaine')
+    vinmo.loc[r, 'wine']  = unidecode(row.wine.replace('Ch.', 'Chateau').replace('Dom.', 'Domaine'))
 
 # TODO (dev)
 # account for different volumes
@@ -276,7 +308,7 @@ for i, row in tqdm(dutyfree_url_df.iterrows(), desc='going through each wine pag
     
     
 
-        res[i] = {'wine': " ".join(soup.find('h1', class_='product-name').text.split()),
+        res[i] = {'wine': unidecode(" ".join(soup.find('h1', class_='product-name').text.split())),
                   'year': year,
                   'price': float(soup.find('span', class_='value').text),
                   'country': country,
@@ -303,6 +335,9 @@ dutyfree_df.type.replace('Hvitvin', 'white', inplace=True)
 dutyfree_df.type.replace('Rosévin', 'rosé', inplace=True)
 dutyfree_df.type.replace('Musserende vin', 'sparkling', inplace=True)
 
+
+
+
 # format volume to float
 dutyfree_df['volume'] = pd.to_numeric(dutyfree_df.volume, errors='coerce')
 
@@ -311,17 +346,21 @@ dutyfree_df.drop(columns='name', inplace=True)
 dutyfree_df = dutyfree_df[['wine', 'year', 'price', 'volume', 'country', 'type']]
 
 
-
 # TODO (dev)
 # temp, needed only for current version, fixed in new scrap
 
 # save_df = dutyfree_df.copy(deep=True)
 
-# for r, row in dutyfree_df.iterrows():
-#     dutyfree_df.loc[r, 'wine'] = " ".join(row.wine.replace('St.', 'Saint').split())
-
 for r, row in dutyfree_df.iterrows():
-    dutyfree_df.loc[r, 'wine'] = row.wine.replace('Ch ', 'Chateau ')
+    dutyfree_df.loc[r, 'wine'] = unidecode(" ".join(row.wine.replace('St.', 'Saint').replace('Ch ', 'Chateau').split()))
+    # dutyfree_df.loc[r, 'wine'] = unidecode(row.wine)
+
+
+    
+    
+
+
+dutyfree_df.wine.replace('Ch ', 'Chateau', inplace=True)
 
 if False:
     dutyfree_url_df.to_csv(os.path.join(folder, f"dutyfree_URL_{datetime.now().strftime('%d_%m_%Y')}.csv"))
@@ -338,7 +377,7 @@ import difflib
 n_possibilities = 1
 cutoff = .73
 
-for r, row in df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows():
+for r, row in dutyfree_df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows():
     if len(difflib.get_close_matches( row.wine, vinmo.wine.values, n=n_possibilities, cutoff=cutoff)) > 0:
         found = difflib.get_close_matches(row.wine, vinmo.wine.values, n=n_possibilities, cutoff=cutoff)[0]
         print(f'''{row.wine} matched with {found}\n \
@@ -348,12 +387,24 @@ for r, row in df.query("'France' in country and type=='red' and volume== .75 and
     # time.sleep(1.3)
     
 #%%   
-from fuzzywuzzy import process, fuzz
+from thefuzz import process, fuzz
 # TODO (dev) 
 # warning on slow SequenceMatcher. Install python-Levenshtein to remove this warning
 
 
 
+n_possibilities = 1
+cutoff = 90
+
+for r, row in dutyfree_df.query("'France' in country and type=='red' and volume== .75 and price > 100").iterrows():
+    found, ratio = process.extractOne(row.wine, vinmo.wine.values, scorer=fuzz.token_sort_ratio)
+    if  ratio > cutoff:
+    
+        print(f'''{row.wine} matched with {found} at {ratio}\n \
+              YEAR {row.year} --- {vinmo.query("@found in wine").year.values}\n\
+              PRICE {row.price} --- {vinmo.query("@found in wine").price.values}\n\
+              DIFF =  {np.round(vinmo.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(vinmo.query("@found in wine").price.values[0] - row.price)/vinmo.query("@found in wine").price.values[0], 2)}%   \n\n''')
+        
 
 
 
