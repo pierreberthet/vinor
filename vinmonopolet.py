@@ -35,6 +35,13 @@ def get_price(data:str):
 
 def random_sleep(base_time:float):
     return np.random.normal(base_time,.1)
+
+def float_volume_vinmo(volume:str):
+    return float(volume[:-2].replace(',', '.')) /100
+
+
+def get_normalised_price(price:float, volume:float):
+    return np.round(price * .75/volume, 2)
         
 #%%
 # Parameters
@@ -152,16 +159,17 @@ vinmo.drop_duplicates(inplace=True)
 
 # convert year to integer, pandas can not manage None with int type --> no vintage = 0
 vinmo['year'] = pd.to_numeric(vinmo.year.fillna(0), errors='coerce', downcast='integer')
-vinmo['wine'] = vinmo.name
-vinmo.drop(columns='name', inplace=True)
-vinmo = vinmo[['wine', 'year', 'price', 'volume']]
+# vinmo['wine'] = vinmo.name
+# vinmo.drop(columns='name', inplace=True)
+# vinmo = vinmo[['wine', 'year', 'price', 'volume', 'type', 'country', 'details']]
 
 
 # remove year from the name, and replace abbreviation with non abbreviated word  (improve similarity matching)
-for r, row in vinmo.iterrows():
+for r, row in vinmo.sort_values('norm').iterrows():
     if len(str(row.year)) > 2 and str(row.year) in row.wine:
         # print(f"{row.wine} --> {row.wine.replace(str(row.year), '')[:-1].replace('Ch.', 'Chateau')}\n")
-        vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1]
+        # vinmo.loc[r, 'wine']  = row.wine.replace(str(row.year), '')[:-1]
+        row.wine  = row.wine.replace(str(row.year), '')[:-1]
         # vinmo.loc[r, 'wine'] = row.wine.replace('Ch.', 'Chateau')
     vinmo.loc[r, 'wine']  = unidecode(row.wine.replace('Ch.', 'Chateau').replace('Dom.', 'Domaine'))
 
@@ -169,7 +177,10 @@ for r, row in vinmo.iterrows():
 # account for different volumes
 
 # format string to float for volume
-vinmo.loc[vinmo.query("volume == '75 Cl'").index, 'volume'] = .75
+vinmo['volume'] = vinmo.volume.map(float_volume_vinmo)
+
+vinmo['norm'] = [ get_normalised_price(a,b)  for a, b in vinmo[['price', 'volume']].values]
+
 
 
 if False:
