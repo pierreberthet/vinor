@@ -397,32 +397,6 @@ for r, row in dutyfree_df.query("'France' in country and type=='red' and volume=
         
     # time.sleep(1.3)
     
-#%%   
-from thefuzz import process, fuzz
-# TODO (dev) 
-# warning on slow SequenceMatcher. Install python-Levenshtein to remove this warning
-# restrict to wine type
-# cross check for volume and vintage
-
-
-
-n_possibilities = 1
-cutoff = 90
-
-start_time = time.time()
-for r, row in dutyfree_df.iterrows():
-    # add wine type in a query
-    found, ratio = process.extractOne(row.wine, vinmo.wine.values, scorer=fuzz.token_sort_ratio)
-    if  ratio > cutoff:
-        # check volume and vintage
-    
-        print(f'''{row.wine} matched with {found} at {ratio}\n \
-              YEAR {row.year} --- {vinmo.query("@found in wine").year.values}\n\
-              PRICE {row.price} --- {vinmo.query("@found in wine").price.values}\n\
-              DIFF =  {np.round(vinmo.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(vinmo.query("@found in wine").price.values[0] - row.price)/vinmo.query("@found in wine").price.values[0], 2)}%   \n\n''')
-        
-print(f"Took {time.time() - start_time} s")
-
 
 
 #%%
@@ -469,6 +443,12 @@ print(f"Took {time.time() - start_time} s")
 # use google or searX or qwant as proxy for meta price fetching
 
 # cc for documentation and tests
+
+# plot distrib of prices per color and region (displot?)
+# 
+
+
+
 
 
 
