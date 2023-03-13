@@ -34,11 +34,27 @@ import seaborn as sns
 folder = '/media/terror/code/projects/vinor/csv'
 os.chdir(folder)
 
+
+
+sns.set_theme('notebook')
+
+# color palette for wine type
+wine_palette = {'Red': 'xkcd:deep red', 'White': 'xkcd:pale yellow', 'Champagne': 'xkcd:goldenrod',
+                'Rosé': 'xkcd:rose pink', 'Sparkling': 'xkcd:green', 'NA': 'xkcd:purple'}
+
 #%%
 # Load Dataset from Vinmonopolet and TaxFree
 
 vinmo = pd.read_csv('vinmonopolet_dump_18_01_2023.csv', index_col=0)
 tf = pd.read_csv('dutyfree_df_14_01_2023.csv', index_col=0)
+
+# standardize wine color
+vinmo.type.replace({'Rødvin':'Red', 'Hvitvin':'White', 'Rosévin': 'Rosé',
+                    'Musserende vin': 'Sparkling'}, inplace=True)
+
+tf.type.fillna('NA', inplace=True)
+tf.type.replace({'red':'Red', 'white':'White', 'rosé': 'Rosé',
+                    'sparkling': 'Sparkling'}, inplace=True)
 
 
 #%%
@@ -60,15 +76,16 @@ locs, labels=plt.xticks()
 plt.xticks(locs,labels, rotation=90)
 despine(ax)
 
-if False:  # very long, > 10min
+if False:  # very long, > 60min
     f, ax = plt.subplots(figsize=(12, 18))
     sns.swarmplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
-    ax.set_xplabel()
+    ax.set_xlabel(' price [NOK]')
     despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 18))
-sns.stripplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
-ax.set_xplabel()
+f, ax = plt.subplots(figsize=(10, 21))
+sns.stripplot(data=vinmo, x='price', y='country', hue='type',alpha=.3,
+              dodge=True,  palette=wine_palette, ax=ax)
+ax.set_xlabel(' price [NOK]')
 despine(ax)
 
 f, ax = plt.subplots(figsize=(12, 18))
@@ -90,6 +107,12 @@ despine(ax)
 
 f, ax = plt.subplots(figsize=(12, 18))
 sns.violinplot(data=tf, x='price', y='country', hue='type', ax=ax)
+despine(ax)
+
+f, ax = plt.subplots(figsize=(10, 21))
+sns.stripplot(data=tf, x='price', y='country', hue='type',alpha=.3,
+              dodge=True,  palette=wine_palette, ax=ax)
+ax.set_xlabel(' price [NOK]')
 despine(ax)
 
 #%%   
