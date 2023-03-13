@@ -60,8 +60,19 @@ locs, labels=plt.xticks()
 plt.xticks(locs,labels, rotation=90)
 despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 8))
-sns.swarmplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
+if False:  # very long, > 10min
+    f, ax = plt.subplots(figsize=(12, 18))
+    sns.swarmplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
+    ax.set_xplabel()
+    despine(ax)
+
+f, ax = plt.subplots(figsize=(12, 18))
+sns.stripplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
+ax.set_xplabel()
+despine(ax)
+
+f, ax = plt.subplots(figsize=(12, 18))
+sns.violinplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
 despine(ax)
 
 
@@ -73,8 +84,12 @@ locs, labels=plt.xticks()
 plt.xticks(locs,labels, rotation=90)
 despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 8))
+f, ax = plt.subplots(figsize=(12, 18))
 sns.swarmplot(data=tf, x='price', y='country', hue='type', ax=ax)
+despine(ax)
+
+f, ax = plt.subplots(figsize=(12, 18))
+sns.violinplot(data=tf, x='price', y='country', hue='type', ax=ax)
 despine(ax)
 
 #%%   
@@ -119,6 +134,12 @@ if False:
 
 
 #%%
+# LOAD matched results
+mdf = pd.read_csv(os.path.join(folder, '.csv'))
+
+
+
+# FIGURES ON MATCHED RESULTS
 
 
 
