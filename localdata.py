@@ -56,6 +56,20 @@ tf.type.fillna('NA', inplace=True)
 tf.type.replace({'red':'Red', 'white':'White', 'rosé': 'Rosé',
                     'sparkling': 'Sparkling'}, inplace=True)
 
+#%%
+# Further PreProcessing
+
+# remove special characters
+
+
+
+# tokenization
+
+
+
+# stemming and lemmatization
+
+
 
 #%%
 def despine(ax):
@@ -135,7 +149,7 @@ start_time = time.time()
 for r, row in tf.iterrows():
     # add wine type in a query
     found, ratio = process.extractOne(row.wine, vinmo.wine.values, scorer=fuzz.token_sort_ratio)
-    res[r] = {'tf':row.wine, 'vinmo':vinmo.query("@found in wine"), 'tf_year': row.year, 'vinmo_year':vinmo.query("@found in wine").year.values,
+    res[r] = {'tf':row.wine, 'vinmo':vinmo.query("@found in wine").wine, 'tf_year': row.year, 'vinmo_year':vinmo.query("@found in wine").year.values,
               'tf_price':row.price, 'vinmo_price':vinmo.query("@found in wine").price.values,
               'difference':np.round(vinmo.query("@found in wine").price.values[0] - row.price, 2),
               'percent':np.round(100*(vinmo.query("@found in wine").price.values[0] - row.price)/vinmo.query("@found in wine").price.values[0], 2),
@@ -158,7 +172,7 @@ if False:
 
 #%%
 # LOAD matched results
-mdf = pd.read_csv(os.path.join(folder, '.csv'))
+mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_12_03_2023.csv'), index_col=0)
 
 
 
