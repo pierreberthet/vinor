@@ -24,7 +24,8 @@ from unidecode import unidecode
 from matplotlib import pyplot as plt
 import seaborn as sns
 
-
+from thefuzz import process, fuzz
+import re
 
 
 #%%
@@ -130,7 +131,7 @@ ax.set_xlabel(' price [NOK]')
 despine(ax)
 
 #%%   
-from thefuzz import process, fuzz
+
 # TODO (dev) 
 # warning on slow SequenceMatcher. Install python-Levenshtein to remove this warning
 # restrict to wine type
@@ -139,40 +140,62 @@ from thefuzz import process, fuzz
 
 
 
+verbose = True
+
 n_possibilities = 1
 cutoff = 90
 
-res = dict()
 
-start_time = time.time()
+def fuzzymatch(a:pd.DataFrame, b:pd.DataFrame, n_possiblility=1, cutoff=90, verbose=False):
+    res = dict()
+    
+    start_time = time.time()
+    
+    for r, row in a.iterrows():
+        # add wine type in a query
+        found, ratio = process.extractOne(row.wine, b.wine.values, scorer=fuzz.token_sort_ratio)
+        res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine").wine.values[0], 'tf_year': row.year, 'vinmo_year':b.query("@found in wine").year.values,
+                  'tf_price':row.price, 'vinmo_price':b.query("@found in wine").price.values,
+                  'difference':np.round(b.query("@found in wine").price.values[0] - row.price, 2),
+                  'percent':np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2),
+                  'ratio':ratio}
+        if  ratio > cutoff:
+            # check volume and vintage
+            if verbose:
+                print(f'''{row.wine} matched with {found} at {ratio}\n \
+                      YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
+                      PRICE {row.price} --- {b.query("@found in wine").price.values}\n\
+                      DIFF =  {np.round(b.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2)}%   \n\n''')
+    
+    print(f"Took {time.time() - start_time} s")        
+    return pd.DataFrame.from_dict(res, orient='index')
+            
 
-for r, row in tf.iterrows():
-    # add wine type in a query
-    found, ratio = process.extractOne(row.wine, vinmo.wine.values, scorer=fuzz.token_sort_ratio)
-    res[r] = {'tf':row.wine, 'vinmo':vinmo.query("@found in wine").wine, 'tf_year': row.year, 'vinmo_year':vinmo.query("@found in wine").year.values,
-              'tf_price':row.price, 'vinmo_price':vinmo.query("@found in wine").price.values,
-              'difference':np.round(vinmo.query("@found in wine").price.values[0] - row.price, 2),
-              'percent':np.round(100*(vinmo.query("@found in wine").price.values[0] - row.price)/vinmo.query("@found in wine").price.values[0], 2),
-              'ratio':ratio}
-    if  ratio > cutoff:
-        # check volume and vintage
-
-        print(f'''{row.wine} matched with {found} at {ratio}\n \
-              YEAR {row.year} --- {vinmo.query("@found in wine").year.values}\n\
-              PRICE {row.price} --- {vinmo.query("@found in wine").price.values}\n\
-              DIFF =  {np.round(vinmo.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(vinmo.query("@found in wine").price.values[0] - row.price)/vinmo.query("@found in wine").price.values[0], 2)}%   \n\n''')
-        
-mdf = pd.DataFrame.from_dict(res, orient='index')
-        
-print(f"Took {time.time() - start_time} s")
+mdf = fuzzymatch(tf, vinmo, verbose=verbose)
 
 if False:
     mdf.to_csv(os.path.join(folder, f"matched_TF_VINMO_{datetime.now().strftime('%d_%m_%Y')}.csv"))
 
 
 #%%
+
+#re.sub(r'[^\w\s]', '', r.wine)
+
+vinmo2 = vinmo.copy(deep=True)
+tf2 = tf.copy(deep=True)
+
+
+vinmo2['wine'] = vinmo2['wine'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
+tf2['wine'] = tf2['wine'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
+
+
+mdf = fuzzymatch(tf2, vinmo2, verbose=verbose)
+
+
+
+#%%
 # LOAD matched results
-mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_12_03_2023.csv'), index_col=0)
+mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_20_04_2023.csv'), index_col=0)
 
 
 
