@@ -57,8 +57,21 @@ tf.type.fillna('NA', inplace=True)
 tf.type.replace({'red':'Red', 'white':'White', 'rosé': 'Rosé',
                     'sparkling': 'Sparkling'}, inplace=True)
 
+
+# drop the entry without volume info
+tf.drop(index=tf[tf.volume.isna()].index, inplace=True)
+
 #%%
 # Further PreProcessing
+# add Portugal as country for "Port", and taly for "Martini"
+tf.loc[tf.wine.str.contains('Port'), 'country'] = 'Portugal'
+tf.loc[tf.wine.str.contains('Martini'), 'country'] = 'Italy'
+
+
+# add nromalized price per volume in duty free dataset
+tf['norm'] = tf.price / tf.volume * .75
+
+
 
 # remove special characters
 
@@ -154,7 +167,12 @@ def fuzzymatch(a:pd.DataFrame, b:pd.DataFrame, n_possiblility=1, cutoff=90, verb
     for r, row in a.iterrows():
         # add wine type in a query
         found, ratio = process.extractOne(row.wine, b.wine.values, scorer=fuzz.token_sort_ratio)
-        res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine").wine.values[0], 'tf_year': row.year, 'vinmo_year':b.query("@found in wine").year.values,
+        if ratio > cutoff:
+            if row.year in b.query("@found in wine").year.values:
+                
+        
+        res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine").wine.values[0], 'tf_year': row.year,
+                  'vinmo_year':b.query("@found in wine").year.values,
                   'tf_price':row.price, 'vinmo_price':b.query("@found in wine").price.values,
                   'difference':np.round(b.query("@found in wine").price.values[0] - row.price, 2),
                   'percent':np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2),
@@ -163,6 +181,13 @@ def fuzzymatch(a:pd.DataFrame, b:pd.DataFrame, n_possiblility=1, cutoff=90, verb
             # check volume and vintage
             if verbose:
                 print(f'''{row.wine} matched with {found} at {ratio}\n \
+                      YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
+                      PRICE {row.price} --- {b.query("@found in wine").price.values}\n\
+                      DIFF =  {np.round(b.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2)}%   \n\n''')
+    
+        else:
+            if verbose:
+                print(f'''{row.wine} NOT MATCHED with {found} at {ratio}\n \
                       YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
                       PRICE {row.price} --- {b.query("@found in wine").price.values}\n\
                       DIFF =  {np.round(b.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2)}%   \n\n''')
@@ -189,13 +214,13 @@ vinmo2['wine'] = vinmo2['wine'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
 tf2['wine'] = tf2['wine'].apply(lambda x: re.sub(r'[^\w\s]', '', x))
 
 
-mdf = fuzzymatch(tf2, vinmo2, verbose=verbose)
+mdf2 = fuzzymatch(tf2, vinmo2, verbose=verbose)
 
 
 
 #%%
 # LOAD matched results
-mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_20_04_2023.csv'), index_col=0)
+mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_24_04_2023.csv'), index_col=0)
 
 
 
