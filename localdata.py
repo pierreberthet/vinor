@@ -42,6 +42,7 @@ sns.set_theme('notebook')
 # color palette for wine type
 wine_palette = {'Red': 'xkcd:deep red', 'White': 'xkcd:pale yellow', 'Champagne': 'xkcd:goldenrod',
                 'Rosé': 'xkcd:rose pink', 'Sparkling': 'xkcd:green', 'NA': 'xkcd:purple'}
+xsize, ysize = (10, 16)
 
 #%%
 # Load Dataset from Vinmonopolet and TaxFree
@@ -97,7 +98,7 @@ def despine(ax):
 
 
 # VINMO
-f, ax = plt.subplots(figsize=(12, 8))
+f, ax = plt.subplots(figsize=(xsize, ysize))
 sns.countplot(data=vinmo.sort_values(by='country'), x='country', ax=ax)
 ax.set_ylabel('# of entries')
 locs, labels=plt.xticks()
@@ -105,7 +106,7 @@ plt.xticks(locs,labels, rotation=90)
 despine(ax)
 
 if False:  # very long, > 60min
-    f, ax = plt.subplots(figsize=(12, 18))
+    f, ax = plt.subplots(figsize=(xsize, ysize))
     sns.swarmplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
     ax.set_xlabel(' price [NOK]')
     despine(ax)
@@ -116,24 +117,24 @@ sns.stripplot(data=vinmo, x='price', y='country', hue='type',alpha=.3,
 ax.set_xlabel(' price [NOK]')
 despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 18))
+f, ax = plt.subplots(figsize=(xsize, ysize))
 sns.violinplot(data=vinmo, x='price', y='country', hue='type', ax=ax)
 despine(ax)
 
 
 # TF
-f, ax = plt.subplots(figsize=(12, 8))
+f, ax = plt.subplots(figsize=(xsize, ysize))
 sns.countplot(data=tf.sort_values(by='country'), x='country', ax=ax)
 ax.set_ylabel('# of entries')
 locs, labels=plt.xticks()
 plt.xticks(locs,labels, rotation=90)
 despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 18))
+f, ax = plt.subplots(figsize=(xsize, ysize))
 sns.swarmplot(data=tf, x='price', y='country', hue='type', ax=ax)
 despine(ax)
 
-f, ax = plt.subplots(figsize=(12, 18))
+f, ax = plt.subplots(figsize=(xsize, ysize))
 sns.violinplot(data=tf, x='price', y='country', hue='type', ax=ax)
 despine(ax)
 
@@ -164,33 +165,53 @@ def fuzzymatch(a:pd.DataFrame, b:pd.DataFrame, n_possiblility=1, cutoff=90, verb
     
     start_time = time.time()
     
-    for r, row in a.iterrows():
+    iterator = tqdm(a.iterrows(), desc='Matching wines across datasets') if not verbose else a.iterrows()
+    
+    for r, row in iterator:
         # add wine type in a query
         found, ratio = process.extractOne(row.wine, b.wine.values, scorer=fuzz.token_sort_ratio)
-        if ratio > cutoff:
-            if row.year in b.query("@found in wine").year.values:
+
+        if row.year in b.query("@found in wine").year.values:
+            res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine and @row.year in year").wine.values, 'tf_year': row.year,
+                      'vinmo_year':b.query("@found in wine and @row.year in year").year.values, 'matched_vintage': True,
+                      'tf_price':row.price, 'vinmo_price':b.query("@found in wine and @row.year in year").price.values[0],
+                      'tf_norm':row.norm, 'vinmo_norm':b.query("@found in wine and @row.year in year").norm.values[0],
+                      'difference':np.round(b.query("@found in wine and @row.year in year").norm.values[0] - row.norm, 2),
+                      'percent':np.round(100*(b.query("@found in wine and @row.year in year").norm.values[0] - row.norm)/b.query("@found in wine and @row.year in year").norm.values, 2),
+                      'ratio':ratio, 'country':row.country}
+            
                 
-        
-        res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine").wine.values[0], 'tf_year': row.year,
-                  'vinmo_year':b.query("@found in wine").year.values,
-                  'tf_price':row.price, 'vinmo_price':b.query("@found in wine").price.values,
-                  'difference':np.round(b.query("@found in wine").price.values[0] - row.price, 2),
-                  'percent':np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2),
-                  'ratio':ratio}
-        if  ratio > cutoff:
-            # check volume and vintage
-            if verbose:
-                print(f'''{row.wine} matched with {found} at {ratio}\n \
-                      YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
-                      PRICE {row.price} --- {b.query("@found in wine").price.values}\n\
-                      DIFF =  {np.round(b.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2)}%   \n\n''')
-    
         else:
-            if verbose:
-                print(f'''{row.wine} NOT MATCHED with {found} at {ratio}\n \
-                      YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
-                      PRICE {row.price} --- {b.query("@found in wine").price.values}\n\
-                      DIFF =  {np.round(b.query("@found in wine").price.values[0] - row.price, 2)} NOK ---->  {np.round(100*(b.query("@found in wine").price.values[0] - row.price)/b.query("@found in wine").price.values[0], 2)}%   \n\n''')
+            res[r] = {'tf':row.wine, 'vinmo':b.query("@found in wine").wine.values[0], 'tf_year': row.year,
+                      'vinmo_year':b.query("@found in wine").year.values, 'matched_vintage': False,
+                      'tf_price':row.price, 'vinmo_price':b.query("@found in wine").price.values,
+                      'tf_norm':row.norm, 'vinmo_norm':b.query("@found in wine").norm.values[0],
+                      'difference':np.round(b.query("@found in wine").norm.values[0] - row.norm, 2),
+                      'percent':np.round(100*(b.query("@found in wine").norm.values[0] - row.norm)/b.query("@found in wine").norm.values[0], 2),
+                      'ratio':ratio, 'country':row.country}
+        if verbose:
+            if  ratio > cutoff:
+            # check volume and vintage
+
+                if row.year in b.query("@found in wine").year.values:
+                    print(f'''\n{row.wine} MATCHED with {found} at {ratio}\n \
+                          YEAR {row.year} ====MATCHED==== {b.query("@found in wine").year.values}\n\
+                          PRICE {row.norm} --- {b.query("@found in wine and @row.year in year").norm.values[0]}\n\
+                          DIFF =  {np.round(b.query("@found in wine and @row.year in year").norm.values[0] - row.norm, 2)} NOK \\
+                          ---->  {np.round(100*(b.query("@found in wine and @row.year in year").norm.values[0] - row.norm)/b.query("@found in wine and @row.year in year").norm.values[0], 2)}%   \n\n''')
+                else:
+                    print(f'''\n{row.wine} MATCHED with {found} at {ratio}\n \
+                          YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
+                          PRICE {row.norm} --- {b.query("@found in wine").norm.values}\n\
+                          DIFF =  {np.round(b.query("@found in wine").norm.values[0] - row.norm, 2)} NOK \\
+                          ---->  {np.round(100*(b.query("@found in wine").norm.values[0] - row.norm)/b.query("@found in wine").norm.values[0], 2)}%   \n\n''')
+    
+            else:
+                    print(f'''\n{row.wine} ###### with {found} at {ratio}\n \
+                          YEAR {row.year} --- {b.query("@found in wine").year.values}\n\
+                          PRICE {row.norm} --- {b.query("@found in wine").norm.values}\n\
+                          DIFF =  {np.round(b.query("@found in wine").norm.values[0] - row.norm, 2)} NOK \\
+                          ---->  {np.round(100*(b.query("@found in wine").norm.values[0] - row.norm)/b.query("@found in wine").norm.values[0], 2)}%   \n\n''')
     
     print(f"Took {time.time() - start_time} s")        
     return pd.DataFrame.from_dict(res, orient='index')
@@ -226,8 +247,10 @@ mdf = pd.read_csv(os.path.join(folder, 'matched_TF_VINMO_24_04_2023.csv'), index
 
 # FIGURES ON MATCHED RESULTS
 
-
-
+f, ax = plt.subplots(figsize=(xsize, ysize))
+sns.ecdfplot(data=mdf[mdf.matched], x='percent', ax=ax)
+ax.set_xlabel('Percentage difference in prices for matched wine [%]')
+despine(ax)
 
 
 #%%
